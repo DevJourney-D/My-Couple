@@ -38,11 +38,13 @@ interface JournalEntry {
     entry_date: string;
     content: string;
     created_at: string;
+    user_id: string;
 }
 
 export default function JournalPage() {
     const [entries, setEntries] = useState<JournalEntry[]>([]);
     const [loading, setLoading] = useState(true);
+    const [currentUserId, setCurrentUserId] = useState<string>('');
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
     const [currentContent, setCurrentContent] = useState('');
     const [saving, setSaving] = useState(false);
@@ -65,8 +67,13 @@ export default function JournalPage() {
             const token = localStorage.getItem('auth_token');
             if (!token) {
                 showNotification('error', 'ไม่พบข้อมูลการเข้าสู่ระบบ');
+                setLoading(false);
                 return;
             }
+
+            // ดึง current user ID จาก token
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            setCurrentUserId(payload.userId);
 
             if (append) setIsLoadingMore(true);
 
@@ -317,6 +324,17 @@ export default function JournalPage() {
                 </h1>
             </header>
 
+            {/* Info Banner */}
+            <div className="px-4 pt-4">
+                <div className="max-w-6xl mx-auto">
+                    <div className="bg-gradient-to-r from-pink-100 to-purple-100 border border-pink-200 rounded-xl p-4 mb-4">
+                        <p className="text-center text-gray-700 font-medium">
+                            💕 คุณและคู่ของคุณสามารถเห็นบันทึกของกันและกันได้ แต่แก้ไขได้เฉพาะบันทึกของตัวเอง
+                        </p>
+                    </div>
+                </div>
+            </div>
+
             {/* Main Content */}
             <div className="p-4">
                 <div className="max-w-6xl mx-auto">
@@ -359,7 +377,12 @@ export default function JournalPage() {
                                                 }`}
                                             >
                                                 <div className="flex items-center justify-between">
-                                                    <span className="text-sm">{formatDate(entry.entry_date)}</span>
+                                                    <div>
+                                                        <span className="text-sm">{formatDate(entry.entry_date)}</span>
+                                                        <div className="text-xs opacity-80 mt-1">
+                                                            {entry.user_id === currentUserId ? '📝 คุณเขียน' : '💕 คู่ของคุณเขียน'}
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </button>
                                         ))}
@@ -416,13 +439,27 @@ export default function JournalPage() {
                                 <div className="mb-6">
                                     <label className="block text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
                                         ✍️ เขียนบันทึกประจำวัน
+                                        {entries.find(e => e.entry_date === selectedDate && e.user_id !== currentUserId) && (
+                                            <span className="text-xs bg-pink-100 text-pink-700 px-2 py-1 rounded-full">
+                                                💕 บันทึกของคู่ (ดูอย่างเดียว)
+                                            </span>
+                                        )}
                                     </label>
                                     <textarea
                                         value={currentContent}
                                         onChange={(e) => setCurrentContent(e.target.value)}
-                                        placeholder="เขียนเรื่องราวของวันนี้... ความรู้สึก ประสบการณ์ หรือสิ่งที่อยากจดจำ ✨"
+                                        placeholder={
+                                            entries.find(e => e.entry_date === selectedDate && e.user_id !== currentUserId)
+                                                ? "นี่คือบันทึกของคู่ของคุณ สามารถอ่านได้แต่ไม่สามารถแก้ไขได้ 💕"
+                                                : "เขียนเรื่องราวของวันนี้... ความรู้สึก ประสบการณ์ หรือสิ่งที่อยากจดจำ ✨"
+                                        }
+                                        readOnly={entries.find(e => e.entry_date === selectedDate && e.user_id !== currentUserId) ? true : false}
                                         rows={12}
-                                        className="w-full px-4 py-4 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 resize-none font-medium text-gray-800 leading-relaxed placeholder-gray-500 shadow-sm"
+                                        className={`w-full px-4 py-4 border-2 rounded-xl resize-none font-medium leading-relaxed shadow-sm ${
+                                            entries.find(e => e.entry_date === selectedDate && e.user_id !== currentUserId)
+                                                ? 'border-pink-300 bg-pink-50 text-gray-700 cursor-default'
+                                                : 'border-gray-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-gray-800 placeholder-gray-500'
+                                        }`}
                                     />
                                     <div className="mt-2 text-sm text-gray-600 font-medium">
                                         {currentContent.length} ตัวอักษร
@@ -431,7 +468,7 @@ export default function JournalPage() {
 
                                 {/* Action Buttons */}
                                 <div className="flex justify-between items-center">
-                                    {entries.find(e => e.entry_date === selectedDate) && (
+                                    {entries.find(e => e.entry_date === selectedDate && e.user_id === currentUserId) && (
                                         <button
                                             onClick={handleDelete}
                                             disabled={saving}
@@ -440,24 +477,27 @@ export default function JournalPage() {
                                             <DeleteIcon />
                                         </button>
                                     )}
-                                    <div className={!entries.find(e => e.entry_date === selectedDate) ? 'ml-auto' : ''}>
-                                        <button
-                                            onClick={handleSave}
-                                            disabled={saving || !currentContent.trim()}
-                                            className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-8 py-3 rounded-xl font-bold text-lg hover:from-amber-600 hover:to-orange-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center gap-2"
-                                        >
-                                            {saving ? (
-                                                <>
-                                                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                                                    กำลังบันทึก...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <SaveIcon />
-                                                    บันทึก
-                                                </>
-                                            )}
-                                        </button>
+                                    <div className={!entries.find(e => e.entry_date === selectedDate && e.user_id === currentUserId) ? 'ml-auto' : ''}>
+                                        {/* แสดงปุ่มบันทึกเฉพาะเมื่อไม่ใช่บันทึกของคู่ */}
+                                        {!entries.find(e => e.entry_date === selectedDate && e.user_id !== currentUserId) && (
+                                            <button
+                                                onClick={handleSave}
+                                                disabled={saving || !currentContent.trim()}
+                                                className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-8 py-3 rounded-xl font-bold text-lg hover:from-amber-600 hover:to-orange-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center gap-2"
+                                            >
+                                                {saving ? (
+                                                    <>
+                                                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                                        กำลังบันทึก...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <SaveIcon />
+                                                        บันทึก
+                                                    </>
+                                                )}
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             </div>

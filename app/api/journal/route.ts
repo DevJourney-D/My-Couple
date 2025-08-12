@@ -29,7 +29,7 @@ function verifyToken(request: NextRequest): DecodedToken | null {
     }
 }
 
-// GET - Fetch journal entries for the user (ไม่ใช้ couple_id เพราะ schema ไม่มี)
+// GET - Fetch journal entries for the couple
 export async function GET(request: NextRequest) {
     try {
         const decoded = verifyToken(request);
@@ -43,19 +43,67 @@ export async function GET(request: NextRequest) {
         const limit = parseInt(searchParams.get('limit') || '20');
         const offset = (page - 1) * limit;
 
-        // Get total count
+        const userId = decoded.userId;
+
+        // ดึงข้อมูลคู่รักของ user
+        const { data: coupleData, error: coupleError } = await supabase
+            .from('couples')
+            .select('user1_id, user2_id')
+            .or(`user1_id.eq.${userId},user2_id.eq.${userId}`)
+            .eq('status', 'connected')
+            .single();
+
+        if (coupleError || !coupleData) {
+            console.log('❌ No couple found or error:', coupleError);
+            // ถ้าไม่มีคู่ ให้ดึงเฉพาะของตัวเอง
+            const { count } = await supabase
+                .from('journal_entries')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', userId)
+                .is('deleted_at', null);
+
+            const { data, error } = await supabase
+                .from('journal_entries')
+                .select('*')
+                .eq('user_id', userId)
+                .is('deleted_at', null)
+                .order('entry_date', { ascending: false })
+                .range(offset, offset + limit - 1);
+
+            if (error) {
+                console.error('Database error:', error);
+                return NextResponse.json({ error: 'Database error' }, { status: 500 });
+            }
+
+            return NextResponse.json({ 
+                entries: data || [],
+                pagination: {
+                    page,
+                    limit,
+                    total: count || 0,
+                    totalPages: Math.ceil((count || 0) / limit),
+                    hasNext: page * limit < (count || 0),
+                    hasPrev: page > 1
+                }
+            });
+        }
+
+        // หา partner ID
+        const partnerId = coupleData.user1_id === userId ? coupleData.user2_id : coupleData.user1_id;
+
+        // Get total count ของทั้งคู่
         const { count } = await supabase
             .from('journal_entries')
             .select('*', { count: 'exact', head: true })
-            .eq('user_id', decoded.userId)
+            .in('user_id', [userId, partnerId])
             .is('deleted_at', null);
 
-        // Get paginated entries
+        // Get paginated entries ของทั้งคู่
         const { data, error } = await supabase
             .from('journal_entries')
             .select('*')
-            .eq('user_id', decoded.userId)
-            .is('deleted_at', null) // ไม่แสดงรายการที่ถูก soft delete
+            .in('user_id', [userId, partnerId])
+            .is('deleted_at', null)
             .order('entry_date', { ascending: false })
             .range(offset, offset + limit - 1);
 

@@ -1,4 +1,4 @@
-// app/api/bucket-list/route.ts
+// app/api/couple-calendar/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 import { createClient } from '@supabase/supabase-js';
@@ -16,10 +16,10 @@ interface JwtPayload {
   exp?: number;
 }
 
-// GET - ดึงรายการ bucket list ทั้งหมดของคู่รัก
+// GET - ดึงรายการกิจกรรมปฏิทินของคู่รัก
 export async function GET(request: NextRequest) {
   try {
-    console.log('=== Bucket List GET Request ===');
+    console.log('=== Couple Calendar GET Request ===');
     
     // ตรวจสอบ Authorization header
     const authHeader = request.headers.get('authorization');
@@ -53,48 +53,48 @@ export async function GET(request: NextRequest) {
     if (coupleError || !coupleData) {
       console.log('❌ No couple found or error:', coupleError);
       // ถ้าไม่มีคู่ ให้ดึงเฉพาะของตัวเอง
-      const { data: items, error: itemsError } = await supabase
-        .from('bucket_list_items')
+      const { data: events, error: eventsError } = await supabase
+        .from('couple_calendar_events')
         .select('*')
         .eq('created_by', userId)
-        .order('created_at', { ascending: false });
+        .order('date', { ascending: true });
       
-      if (itemsError) {
-        console.log('❌ Error fetching items:', itemsError);
-        return NextResponse.json({ error: 'Failed to fetch items' }, { status: 500 });
+      if (eventsError) {
+        console.log('❌ Error fetching events:', eventsError);
+        return NextResponse.json({ error: 'Failed to fetch events' }, { status: 500 });
       }
       
-      console.log('✅ Retrieved items (single user):', items?.length || 0, 'items');
+      console.log('✅ Retrieved events (single user):', events?.length || 0, 'events');
       return NextResponse.json({
         success: true,
-        items: items || []
+        events: events || []
       });
     }
 
     // หา partner ID
     const partnerId = coupleData.user1_id === userId ? coupleData.user2_id : coupleData.user1_id;
     
-    // ดึงรายการ bucket list ของทั้งคู่
-    const { data: items, error: itemsError } = await supabase
-      .from('bucket_list_items')
+    // ดึงรายการกิจกรรมของทั้งคู่
+    const { data: events, error: eventsError } = await supabase
+      .from('couple_calendar_events')
       .select('*')
       .in('created_by', [userId, partnerId])
-      .order('created_at', { ascending: false });
+      .order('date', { ascending: true });
 
-    if (itemsError) {
-      console.log('❌ Error fetching items:', itemsError);
-      return NextResponse.json({ error: 'Failed to fetch items' }, { status: 500 });
+    if (eventsError) {
+      console.log('❌ Error fetching events:', eventsError);
+      return NextResponse.json({ error: 'Failed to fetch events' }, { status: 500 });
     }
 
-    console.log('✅ Retrieved items:', items?.length || 0, 'items');
+    console.log('✅ Retrieved events:', events?.length || 0, 'events');
     
     return NextResponse.json({
       success: true,
-      items: items || []
+      events: events || []
     });
 
   } catch (error) {
-    console.error('❌ Bucket List GET error:', error);
+    console.error('❌ Couple Calendar GET error:', error);
     return NextResponse.json({ 
       error: 'Internal server error',
       details: error instanceof Error ? error.message : 'Unknown error'
@@ -102,10 +102,10 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - สร้างรายการ bucket list ใหม่
+// POST - สร้างกิจกรรมใหม่
 export async function POST(request: NextRequest) {
   try {
-    console.log('=== Bucket List POST Request ===');
+    console.log('=== Couple Calendar POST Request ===');
     
     // ตรวจสอบ Authorization header
     const authHeader = request.headers.get('authorization');
@@ -130,49 +130,54 @@ export async function POST(request: NextRequest) {
 
     // รับข้อมูลจาก request body
     const body = await request.json();
-    const { title, description, category } = body;
+    const { title, date, description, type, emoji, color } = body;
 
-    console.log('📝 Request data:', { title, description, category });
+    console.log('📅 Request data:', { title, date, description, type, emoji, color });
 
     // ตรวจสอบข้อมูลที่จำเป็น
-    if (!title) {
+    if (!title || !date || !type) {
       console.log('❌ Missing required fields');
       return NextResponse.json({ 
-        error: 'Missing required fields: title is required' 
+        error: 'Missing required fields: title, date, and type are required' 
       }, { status: 400 });
     }
 
-    // สร้างรายการใหม่
-    const { data: newItem, error: itemError } = await supabase
-      .from('bucket_list_items')
+    // สร้างกิจกรรมใหม่
+    const { data: newEvent, error: eventError } = await supabase
+      .from('couple_calendar_events')
       .insert([
         {
-          task: title,
-          is_completed: false,
+          title,
+          date,
+          description: description || '',
+          type,
+          emoji: emoji || '💕',
+          color: color || 'from-pink-400 to-rose-500',
           created_by: userId,
           created_at: new Date().toISOString()
         }
       ])
       .select()
       .single();
-    if (itemError) {
-      console.log('❌ Error creating item:', itemError);
+
+    if (eventError) {
+      console.log('❌ Error creating event:', eventError);
       return NextResponse.json({ 
-        error: 'Failed to create item',
-        details: itemError.message 
+        error: 'Failed to create event',
+        details: eventError.message 
       }, { status: 500 });
     }
 
-    console.log('✅ Item created successfully:', newItem.id);
+    console.log('✅ Event created successfully:', newEvent.id);
 
     return NextResponse.json({
       success: true,
-      message: 'Item created successfully',
-      item: newItem
+      message: 'Event created successfully',
+      event: newEvent
     });
 
   } catch (error) {
-    console.error('❌ Bucket List POST error:', error);
+    console.error('❌ Couple Calendar POST error:', error);
     return NextResponse.json({ 
       error: 'Internal server error',
       details: error instanceof Error ? error.message : 'Unknown error'

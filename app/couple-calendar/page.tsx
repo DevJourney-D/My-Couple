@@ -82,6 +82,8 @@ interface CoupleEvent {
     type: 'anniversary' | 'date' | 'special' | 'birthday' | 'surprise';
     emoji: string;
     color: string;
+    created_by: string;
+    created_at: string;
 }
 
 // =================================================================
@@ -89,53 +91,9 @@ interface CoupleEvent {
 // =================================================================
 export default function CoupleCalendarPage() {
     const [currentDate, setCurrentDate] = useState(new Date());
-    const [events, setEvents] = useState<CoupleEvent[]>([
-        { 
-            id: 1, 
-            title: '💕 วันเริ่มคบกัน', 
-            date: '2024-02-14', 
-            type: 'anniversary', 
-            description: 'วันแรกที่เราเป็นคู่รัก ความรักเริ่มต้น',
-            emoji: '💕',
-            color: 'from-pink-400 to-rose-500'
-        },
-        { 
-            id: 2, 
-            title: '🎂 วันเกิดคนรัก', 
-            date: '2024-03-15', 
-            type: 'birthday', 
-            description: 'วันเกิดของคนที่รักที่สุดในโลก',
-            emoji: '🎂',
-            color: 'from-purple-400 to-pink-500'
-        },
-        { 
-            id: 3, 
-            title: '🌹 เดทดูหนังโรแมนติก', 
-            date: '2024-01-20', 
-            type: 'date', 
-            description: 'ดูหนังรักๆ กินป๊อปคอร์นด้วยกัน',
-            emoji: '🌹',
-            color: 'from-rose-400 to-red-500'
-        },
-        { 
-            id: 4, 
-            title: '✨ ครบรอบ 6 เดือน', 
-            date: '2024-08-14', 
-            type: 'special', 
-            description: 'ครบรอบ 6 เดือนแห่งความรักที่แสนหวาน',
-            emoji: '✨',
-            color: 'from-yellow-400 to-orange-500'
-        },
-        { 
-            id: 5, 
-            title: '🎁 เซอร์ไพรส์คนรัก', 
-            date: '2024-08-20', 
-            type: 'surprise', 
-            description: 'วันที่วางแผนจะทำเซอร์ไพรส์พิเศษ',
-            emoji: '🎁',
-            color: 'from-indigo-400 to-purple-500'
-        }
-    ]);
+    const [events, setEvents] = useState<CoupleEvent[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [currentUserId, setCurrentUserId] = useState<string>('');
     const [showAddEvent, setShowAddEvent] = useState(false);
     const [newEvent, setNewEvent] = useState<Partial<CoupleEvent>>({ 
         title: '', 
@@ -145,11 +103,64 @@ export default function CoupleCalendarPage() {
         emoji: '💕',
         color: 'from-pink-400 to-rose-500'
     });
+    const [notification, setNotification] = useState<{
+        type: 'success' | 'error' | 'info';
+        message: string;
+    } | null>(null);
+
+    // แสดง notification
+    const showNotification = (type: 'success' | 'error' | 'info', message: string) => {
+        setNotification({ type, message });
+        setTimeout(() => setNotification(null), 3000);
+    };
+
+    // ดึงข้อมูลกิจกรรม
+    const fetchEvents = async () => {
+        try {
+            const token = localStorage.getItem('auth_token');
+            if (!token) {
+                showNotification('error', 'ไม่พบข้อมูลการเข้าสู่ระบบ');
+                return;
+            }
+
+            // ดึง current user ID จาก token
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            setCurrentUserId(payload.userId);
+
+            const response = await fetch('/api/couple-calendar', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setEvents(data.events || []);
+            } else {
+                const errorData = await response.json();
+                showNotification('error', errorData.error || 'ไม่สามารถดึงข้อมูลได้');
+            }
+        } catch (error) {
+            console.error('Error fetching events:', error);
+            showNotification('error', 'เกิดข้อผิดพลาดในการดึงข้อมูล');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     // Log เมื่อเข้าหน้าครั้งแรก
     useEffect(() => {
+        fetchEvents();
         logUserAction('page_view', {
             timestamp: new Date().toISOString(),
+            currentMonth: currentDate.toISOString().substring(0, 7)
+        });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Log เมื่อเปลี่ยนเดือน
+    useEffect(() => {
+        logUserAction('month_change', {
             currentMonth: currentDate.toISOString().substring(0, 7),
             totalEvents: events.length
         });
@@ -195,29 +206,98 @@ export default function CoupleCalendarPage() {
         });
     };
 
-    const handleAddEvent = () => {
+    const handleAddEvent = async () => {
         if (newEvent.title && newEvent.date && newEvent.type) {
-            const config = eventTypeConfigs[newEvent.type];
-            const event: CoupleEvent = {
-                id: Date.now(),
-                title: newEvent.title,
-                date: newEvent.date,
-                description: newEvent.description || '',
-                type: newEvent.type,
-                emoji: config.emoji,
-                color: config.color
-            };
-            setEvents([...events, event]);
-            setNewEvent({ title: '', date: '', description: '', type: 'date', emoji: '💕', color: 'from-pink-400 to-rose-500' });
-            setShowAddEvent(false);
-            
-            logUserAction('add_event', {
-                eventTitle: event.title,
-                eventDate: event.date,
-                eventType: event.type
-            });
+            try {
+                const token = localStorage.getItem('auth_token');
+                if (!token) {
+                    showNotification('error', 'ไม่พบข้อมูลการเข้าสู่ระบบ');
+                    return;
+                }
+
+                const config = eventTypeConfigs[newEvent.type];
+                const response = await fetch('/api/couple-calendar', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        title: newEvent.title,
+                        date: newEvent.date,
+                        description: newEvent.description || '',
+                        type: newEvent.type,
+                        emoji: config.emoji,
+                        color: config.color
+                    })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    setEvents(prev => [...prev, result.event]);
+                    setNewEvent({ title: '', date: '', description: '', type: 'date', emoji: '💕', color: 'from-pink-400 to-rose-500' });
+                    setShowAddEvent(false);
+                    showNotification('success', 'เพิ่มกิจกรรมเรียบร้อยแล้ว 💕');
+                    
+                    logUserAction('add_event', {
+                        eventTitle: result.event.title,
+                        eventDate: result.event.date,
+                        eventType: result.event.type
+                    });
+                } else {
+                    const errorData = await response.json();
+                    showNotification('error', errorData.error || 'ไม่สามารถเพิ่มกิจกรรมได้');
+                }
+            } catch (error) {
+                console.error('Error adding event:', error);
+                showNotification('error', 'เกิดข้อผิดพลาดในการเพิ่มกิจกรรม');
+            }
+        } else {
+            showNotification('error', 'กรุณากรอกข้อมูลให้ครบถ้วน');
         }
     };
+
+    // ลบกิจกรรม
+    const deleteEvent = async (eventId: number) => {
+        if (!confirm('ต้องการลบกิจกรรมนี้หรือไม่?')) return;
+        
+        try {
+            const token = localStorage.getItem('auth_token');
+            if (!token) {
+                showNotification('error', 'ไม่พบข้อมูลการเข้าสู่ระบบ');
+                return;
+            }
+
+            const response = await fetch(`/api/couple-calendar/${eventId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (response.ok) {
+                setEvents(prev => prev.filter(event => event.id !== eventId));
+                showNotification('success', 'ลบกิจกรรมเรียบร้อยแล้ว');
+            } else {
+                const errorData = await response.json();
+                showNotification('error', errorData.error || 'ไม่สามารถลบกิจกรรมได้');
+            }
+        } catch (error) {
+            console.error('Error deleting event:', error);
+            showNotification('error', 'เกิดข้อผิดพลาดในการลบกิจกรรม');
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-cyan-50 p-4 flex items-center justify-center">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-pink-600 mx-auto mb-4"></div>
+                    <p className="text-gray-600 font-black">กำลังโหลด...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 via-rose-50 to-cyan-50 relative overflow-hidden">
@@ -260,6 +340,7 @@ export default function CoupleCalendarPage() {
                             <SparkleIcon delay="0.5s" />
                         </div>
                         <p className="text-xl text-gray-600 font-bold mb-2">ปฏิทินความรักสำหรับคู่รักน้อย 💖</p>
+                        <p className="text-lg text-gray-500 font-medium mb-2">คุณและคู่ของคุณสามารถเห็นปฏิทินร่วมกันได้ 👫💕</p>
                         <div className="flex items-center justify-center gap-3 text-lg">
                             <SparkleIcon delay="1s" />
                             <span className="text-gray-500 font-medium">สร้างความทรงจำดีๆ ร่วมกัน</span>
@@ -436,10 +517,32 @@ export default function CoupleCalendarPage() {
                                             <div className="absolute bottom-2 left-2 text-sm opacity-50">💖</div>
                                             
                                             <div className="relative z-10">
-                                                <div className="flex items-center gap-3 mb-3">
-                                                    <span className="text-3xl animate-bounce">{event.emoji}</span>
-                                                    <h4 className="text-xl font-black">{event.title}</h4>
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="text-3xl animate-bounce">{event.emoji}</span>
+                                                        <h4 className="text-xl font-black">{event.title}</h4>
+                                                    </div>
+                                                    {/* ปุ่มลบ - แสดงเฉพาะรายการของตัวเอง */}
+                                                    {event.created_by === currentUserId && (
+                                                        <button
+                                                            onClick={() => deleteEvent(event.id)}
+                                                            className="p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-full transition-all"
+                                                        >
+                                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                                <polyline points="3 6 5 6 21 6"></polyline>
+                                                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2 2v2"></path>
+                                                                <line x1="10" y1="11" x2="10" y2="17"></line>
+                                                                <line x1="14" y1="11" x2="14" y2="17"></line>
+                                                            </svg>
+                                                        </button>
+                                                    )}
                                                 </div>
+                                                
+                                                {/* แสดงผู้สร้าง */}
+                                                <p className="text-sm mb-2 opacity-90">
+                                                    {event.created_by === currentUserId ? '📝 คุณสร้าง' : '💕 คู่ของคุณสร้าง'}
+                                                </p>
+                                                
                                                 <p className="text-lg font-bold mb-2 flex items-center gap-2">
                                                     <span className="text-xl">📅</span>
                                                     {new Date(event.date).toLocaleDateString('th-TH', {
@@ -582,6 +685,19 @@ export default function CoupleCalendarPage() {
                                 </button>
                             </div>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Notification */}
+            {notification && (
+                <div className="fixed top-4 right-4 z-50">
+                    <div className={`p-4 rounded-lg shadow-lg font-black ${
+                        notification.type === 'success' ? 'bg-green-500 text-white' :
+                        notification.type === 'error' ? 'bg-red-500 text-white' :
+                        'bg-blue-500 text-white'
+                    }`}>
+                        {notification.message}
                     </div>
                 </div>
             )}

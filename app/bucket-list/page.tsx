@@ -62,6 +62,7 @@ export default function BucketListPage() {
     const [showModal, setShowModal] = useState(false);
     const [items, setItems] = useState<BucketItem[]>([]);
     const [loading, setLoading] = useState(true);
+    const [currentUserId, setCurrentUserId] = useState<string>('');
     const [formData, setFormData] = useState({
         task: ''
     });
@@ -85,6 +86,10 @@ export default function BucketListPage() {
                 showNotification('error', 'ไม่พบข้อมูลการเข้าสู่ระบบ');
                 return;
             }
+
+            // ดึง current user ID จาก token
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            setCurrentUserId(payload.userId);
 
             const response = await fetch('/api/bucket-list', {
                 headers: {
@@ -328,6 +333,11 @@ export default function BucketListPage() {
                                         {item.task}
                                     </h3>
 
+                                    {/* แสดงผู้สร้าง */}
+                                    <p className="text-sm text-gray-500 font-medium mb-1">
+                                        {item.created_by === currentUserId ? '📝 คุณเขียน' : '💕 คู่ของคุณเขียน'}
+                                    </p>
+
                                     {/* วันที่เสร็จสิ้น */}
                                     {item.is_completed && item.completed_at && (
                                         <p className="text-sm text-green-600 font-black">
@@ -340,13 +350,15 @@ export default function BucketListPage() {
                                     )}
                                 </div>
 
-                                {/* ปุ่มลบ */}
-                                <button
-                                    onClick={() => deleteItem(item.id)}
-                                    className="p-2 text-red-500 hover:bg-red-100 rounded-full transition-all transform hover:scale-110"
-                                >
-                                    <TrashIcon />
-                                </button>
+                                {/* ปุ่มลบ - แสดงเฉพาะรายการของตัวเอง */}
+                                {item.created_by === currentUserId && (
+                                    <button
+                                        onClick={() => deleteItem(item.id)}
+                                        className="p-2 text-red-500 hover:bg-red-100 rounded-full transition-all transform hover:scale-110"
+                                    >
+                                        <TrashIcon />
+                                    </button>
+                                )}
                             </div>
                         </div>
                     ))

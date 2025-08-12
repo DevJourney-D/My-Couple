@@ -19,10 +19,13 @@ interface JwtPayload {
 // DELETE - ลบกิจกรรม
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     console.log('=== Couple Calendar DELETE Request ===');
+    
+    // รอ params เพราะเป็น Promise
+    const { id } = await params;
     
     // ตรวจสอบ Authorization header
     const authHeader = request.headers.get('authorization');
@@ -44,7 +47,7 @@ export async function DELETE(
     }
 
     const userId = decoded.userId;
-    const eventId = params.id;
+    const eventId = id;
 
     // ตรวจสอบว่ากิจกรรมนี้เป็นของ user หรือไม่
     const { data: existingEvent, error: checkError } = await supabase

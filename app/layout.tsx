@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "My Couple - แอปคู่รักที่สมบูรณ์แบบ",
+  title: "My Couple - แอปคู่รัก",
   description: "แอปพลิเคชันสำหรับคู่รักที่รวมทุกฟีเจอร์ที่ต้องการ - ไทม์ไลน์ความรัก, สมุดบันทึก, แกลลอรี่รูปภาพ, เกมส์, AI Chat และอีกมากมาย",
   keywords: ["คู่รัก", "ความรัก", "แอปคู่รัก", "love app", "couple app", "timeline", "journal", "photo gallery"],
   authors: [{ name: "My Couple Team" }],
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
   },
   manifest: '/manifest.json',
   openGraph: {
-    title: "My Couple - แอปคู่รักที่สมบูรณ์แบบ",
+    title: "My Couple - แอปคู่รัก",
     description: "แอปพลิเคชันสำหรับคู่รักที่รวมทุกฟีเจอร์ที่ต้องการ - ไทม์ไลน์ความรัก, สมุดบันทึก, แกลลอรี่รูปภาพ, เกมส์, AI Chat และอีกมากมาย",
     type: "website",
     locale: "th_TH",
@@ -47,7 +47,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "My Couple - แอปคู่รักที่สมบูรณ์แบบ",
+    title: "My Couple - แอปคู่รัก",
     description: "แอปพลิเคชันสำหรับคู่รักที่รวมทุกฟีเจอร์ที่ต้องการ",
   },
   robots: {

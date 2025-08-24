@@ -68,6 +68,12 @@ const CalendarIcon = () => (
         <line x1="3" y1="10" x2="21" y2="10"></line>
     </svg>
 );
+const TodoIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-600">
+        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
+        <path d="m9 12 2 2 4-4"/>
+    </svg>
+);
 
 // =================================================================
 // คอมโพเนนต์การ์ดสำหรับแต่ละฟีเจอร์
@@ -350,6 +356,7 @@ export default function DashboardPage() {
         { href: '/timeline', icon: <TimelineIcon />, title: 'ไทม์ไลน์ความรัก', description: 'บันทึกและย้อนดูความทรงจำดีๆ ของเรา' },
         { href: '/math-game', icon: <MathGameIcon />, title: 'เกมคณิตศาสตร์', description: 'มาลับสมอง ประลองปัญญากันหน่อย' },
         { href: '/bucket-list', icon: <BucketListIcon />, title: 'สิ่งที่อยากทำด้วยกัน', description: 'วางแผนและทำความฝันของเราให้เป็นจริง' },
+        { href: '/todo', icon: <TodoIcon />, title: 'Todo List', description: 'จัดการงานและเป้าหมายร่วมกัน' },
         { href: '/journal', icon: <JournalIcon />, title: 'สมุดบันทึก', description: 'เขียนความรู้สึกและเรื่องราวถึงกันและกัน' },
         { href: '/ai-chat', icon: <AiChatIcon />, title: 'คุยกับ AI', description: 'เพื่อนคุยแก้เหงา ถามตอบได้ทุกเรื่อง' },
         { href: '/date-spinner', icon: <DateNightIcon />, title: 'วงล้อสุ่มเดท', description: 'ตัดสินใจไม่ได้? ให้วงล้อช่วยเลือกเดทให้' },

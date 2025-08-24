@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 export default function NotFound() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-100 to-blue-100 flex items-center justify-center p-4">
@@ -9,12 +11,12 @@ export default function NotFound() {
         <p className="text-gray-500 mb-8">
           หน้าที่คุณกำลังมองหาอาจถูกย้าย ลบ หรือไม่เคยมีอยู่
         </p>
-        <a
+        <Link
           href="/dashboard"
           className="inline-block px-6 py-3 bg-pink-500 text-white rounded-lg font-medium hover:bg-pink-600 transition-colors"
         >
           กลับหน้าหลัก
-        </a>
+        </Link>
       </div>
     </div>
   );

@@ -132,6 +132,29 @@ export default function LogsPage() {
         }
     }, [currentPage, itemsPerPage, selectedLevel]);
 
+    // Fetch all logs for stats (not paginated)
+    const loadAllLogsForStats = useCallback(async () => {
+        try {
+            const token = localStorage.getItem('auth_token');
+            if (!token) return;
+            const response = await fetch(`/api/logs?limit=100000`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            if (response.ok) {
+                const data = await response.json();
+                if (data.logs) {
+                    const statsData = calculateStats(data.logs);
+                    setStats(statsData);
+                }
+            }
+        } catch {
+            // ignore error for stats
+        }
+    }, []);
+
     // Calculate statistics from logs
     const calculateStats = (logsData: LogEntry[]): LogStats => {
         const now = new Date();
@@ -173,6 +196,11 @@ export default function LogsPage() {
     useEffect(() => {
         loadLogs();
     }, [loadLogs]);
+
+    // Load all logs for stats when component mounts
+    useEffect(() => {
+        loadAllLogsForStats();
+    }, [loadAllLogsForStats]);
 
     // Reset page when filters change
     useEffect(() => {

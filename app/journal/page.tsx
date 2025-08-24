@@ -3,6 +3,7 @@
 
 import Link from 'next/link';
 import React, { useState, useEffect, useCallback } from 'react';
+import { logUserAction } from '@/utils/logger';
 
 // =================================================================
 // ไอคอนต่างๆ
@@ -135,11 +136,28 @@ export default function JournalPage() {
         setCurrentContent(existingEntry ? existingEntry.content : '');
     }, [selectedDate, entries]);
 
+    // Log page view
+    useEffect(() => {
+        logUserAction('journal', 'page_view', {
+            timestamp: new Date().toISOString(),
+            user_agent: navigator.userAgent
+        });
+    }, []);
+
     const handleSave = async () => {
         if (!currentContent.trim()) {
             showNotification('error', 'กรุณาเขียนบันทึกก่อนบันทึก');
             return;
         }
+
+        const existingEntry = entries.find(e => e.entry_date === selectedDate);
+        const action = existingEntry ? 'edit_journal_entry' : 'create_journal_entry';
+        
+        logUserAction('journal', action, {
+            date: selectedDate,
+            content_length: currentContent.length,
+            entry_id: existingEntry?.id
+        });
 
         setSaving(true);
         try {
@@ -170,6 +188,10 @@ export default function JournalPage() {
                             : entry
                     ));
                     showNotification('success', 'แก้ไขบันทึกเรียบร้อยแล้ว');
+                    logUserAction('journal', 'edit_journal_success', {
+                        entry_id: existingEntry.id,
+                        date: selectedDate
+                    });
                 } else if (response.status === 401) {
                     localStorage.removeItem('auth_token');
                     showNotification('error', 'กรุณาเข้าสู่ระบบใหม่');
@@ -197,6 +219,10 @@ export default function JournalPage() {
                     const data = result.entry || result;
                     setEntries([data, ...entries]);
                     showNotification('success', 'สร้างบันทึกใหม่เรียบร้อยแล้ว');
+                    logUserAction('journal', 'create_journal_success', {
+                        entry_id: data.id,
+                        date: selectedDate
+                    });
                 } else if (response.status === 401) {
                     localStorage.removeItem('auth_token');
                     showNotification('error', 'กรุณาเข้าสู่ระบบใหม่');
@@ -221,6 +247,12 @@ export default function JournalPage() {
             showNotification('info', 'ไม่มีบันทึกให้ลบ');
             return;
         }
+        
+        logUserAction('journal', 'attempt_delete_journal', {
+            entry_id: existingEntry.id,
+            date: selectedDate
+        });
+        
         setShowDeleteModal(true);
     };
 
@@ -248,6 +280,10 @@ export default function JournalPage() {
                 setEntries(entries.filter(entry => entry.id !== existingEntry.id));
                 setCurrentContent('');
                 showNotification('success', 'ลบบันทึกเรียบร้อยแล้ว');
+                logUserAction('journal', 'delete_journal_success', {
+                    entry_id: existingEntry.id,
+                    date: selectedDate
+                });
             } else if (response.status === 401) {
                 localStorage.removeItem('auth_token');
                 showNotification('error', 'กรุณาเข้าสู่ระบบใหม่');

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { logUserAction } from '@/utils/logger';
 
 interface DateIdea {
   id: number;
@@ -22,6 +23,15 @@ export default function DateSpinner() {
   const [showPaper, setShowPaper] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
 
+  // Log page view
+  useEffect(() => {
+    logUserAction('date-spinner', 'page_view', {
+      timestamp: new Date().toISOString(),
+      user_agent: navigator.userAgent,
+      initial_ideas_count: ideas.length
+    });
+  }, [ideas.length]);
+
   const addIdea = () => {
     if (newIdea.trim() && ideas.length < 10) {
       const newItem = {
@@ -30,15 +40,32 @@ export default function DateSpinner() {
       };
       setIdeas([...ideas, newItem]);
       setNewIdea('');
+      
+      logUserAction('date-spinner', 'add_idea', {
+        idea: newIdea.trim(),
+        total_ideas: ideas.length + 1
+      });
     }
   };
 
   const removeIdea = (id: number) => {
+    const ideaToRemove = ideas.find(idea => idea.id === id);
     setIdeas(ideas.filter(idea => idea.id !== id));
+    
+    logUserAction('date-spinner', 'remove_idea', {
+      idea_id: id,
+      idea_text: ideaToRemove?.idea,
+      remaining_ideas: ideas.length - 1
+    });
   };
 
   const drawRandomIdea = () => {
     if (ideas.length === 0) return;
+    
+    logUserAction('date-spinner', 'draw_random_idea', {
+      available_ideas: ideas.length,
+      timestamp: new Date().toISOString()
+    });
     
     setIsAnimating(true);
     setShowPaper(true);
@@ -60,11 +87,18 @@ export default function DateSpinner() {
     // Show result
     setTimeout(() => {
       const randomIndex = Math.floor(Math.random() * ideas.length);
-      setSelectedIdea(ideas[randomIndex].idea);
+      const selectedIdeaText = ideas[randomIndex].idea;
+      setSelectedIdea(selectedIdeaText);
       setIsShaking(false);
       setShowPaper(false);
       setIsAnimating(false);
       setPaperPosition({ x: 0, y: 0 });
+      
+      logUserAction('date-spinner', 'idea_selected', {
+        selected_idea: selectedIdeaText,
+        idea_index: randomIndex,
+        total_ideas: ideas.length
+      });
     }, 2000);
   };
 

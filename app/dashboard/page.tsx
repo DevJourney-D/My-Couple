@@ -2,7 +2,8 @@
 'use client'; // เปลี่ยนเป็น Client Component เพื่อใช้ State
 
 import Link from 'next/link';
-import React, { useState } from 'react'; // Import useState
+import React, { useState, useEffect } from 'react'; // Import useState และ useEffect
+import { logUserAction } from '../../utils/logger';
 
 // =================================================================
 // ไอคอนสำหรับแต่ละฟีเจอร์ (เหมือนเดิม)
@@ -85,17 +86,27 @@ interface FeatureCardProps {
     description: string;
 }
 
-const FeatureCard = ({ href, icon, title, description }: FeatureCardProps) => (
-    <Link href={href} className="group block">
-        <div className="p-6 bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 h-full">
-            <div className="flex items-center justify-center w-12 h-12 bg-white rounded-xl mb-4 shadow-md">
-                {icon}
+const FeatureCard = ({ href, icon, title, description }: FeatureCardProps) => {
+    const handleClick = () => {
+        logUserAction('dashboard', 'navigate_to_feature', {
+            feature: title,
+            href: href,
+            timestamp: new Date().toISOString()
+        });
+    };
+
+    return (
+        <Link href={href} className="group block" onClick={handleClick}>
+            <div className="p-6 bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 h-full">
+                <div className="flex items-center justify-center w-12 h-12 bg-white rounded-xl mb-4 shadow-md">
+                    {icon}
+                </div>
+                <h3 className="text-lg font-bold text-gray-800 mb-1">{title}</h3>
+                <p className="text-sm text-gray-600">{description}</p>
             </div>
-            <h3 className="text-lg font-bold text-gray-800 mb-1">{title}</h3>
-            <p className="text-sm text-gray-600">{description}</p>
-        </div>
-    </Link>
-);
+        </Link>
+    );
+};
 
 // =================================================================
 // คอมโพเนนต์ใหม่: ส่วนของคำเชิญ
@@ -256,6 +267,13 @@ export default function DashboardPage() {
     const [partnerUsername, setPartnerUsername] = useState<string>('');
     const [currentUsername, setCurrentUsername] = useState<string>('');
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+    useEffect(() => {
+        logUserAction('dashboard', 'page_view', {
+          timestamp: new Date().toISOString(),
+          route: '/dashboard'
+        });
+    }, []);
 
     // ดึง userId จาก token JWT
     function getUserIdFromToken() {

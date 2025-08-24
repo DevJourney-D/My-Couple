@@ -2,8 +2,9 @@
 'use client'; // ต้องใช้ 'use client' เพื่อจัดการ State และ Form
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { logUserAction } from '../utils/logger';
 
 // ไอคอนรูปหัวใจเล็กๆ สำหรับตกแต่ง
 const HeartIcon = () => (
@@ -30,10 +31,22 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  useEffect(() => {
+    logUserAction('login', 'page_view', {
+      timestamp: new Date().toISOString(),
+      route: '/'
+    });
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsLoading(true);
+
+    logUserAction('login', 'attempt_login', {
+      username,
+      timestamp: new Date().toISOString()
+    });
 
     try {
       const response = await fetch('/api/login', {
@@ -47,12 +60,24 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (!response.ok) {
+        logUserAction('login', 'login_failed', {
+          username,
+          error: data.error,
+          timestamp: new Date().toISOString(),
+          level: 'ERROR'
+        });
         throw new Error(data.error || 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ');
       }
 
       // เก็บ token ใน localStorage ก่อน redirect
       if (data.token) {
         window.localStorage.setItem('auth_token', data.token);
+        
+        logUserAction('login', 'login_success', {
+          username,
+          timestamp: new Date().toISOString(),
+          level: 'SUCCESS'
+        });
       }
 
       // ถ้าสำเร็จ ให้พาไปหน้า dashboard

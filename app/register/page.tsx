@@ -2,8 +2,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation'; // สำหรับการ redirect
+import { logUserAction } from '../../utils/logger';
 
 // ไอคอนรูปหัวใจเล็กๆ สำหรับตกแต่ง
 const HeartIcon = () => (
@@ -32,13 +33,31 @@ export default function RegisterPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  useEffect(() => {
+    logUserAction('register', 'page_view', {
+      timestamp: new Date().toISOString(),
+      route: '/register'
+    });
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccess(null);
     setIsLoading(true);
 
+    logUserAction('register', 'attempt_register', {
+      username,
+      timestamp: new Date().toISOString()
+    });
+
     if (password !== confirmPassword) {
+      logUserAction('register', 'validation_failed', {
+        username,
+        error: 'password_mismatch',
+        timestamp: new Date().toISOString(),
+        level: 'ERROR'
+      });
       setError('รหัสผ่านและการยืนยันรหัสผ่านไม่ตรงกัน');
       setIsLoading(false);
       return;
@@ -56,8 +75,20 @@ export default function RegisterPage() {
       const data = await response.json();
 
       if (!response.ok) {
+        logUserAction('register', 'register_failed', {
+          username,
+          error: data.error,
+          timestamp: new Date().toISOString(),
+          level: 'ERROR'
+        });
         throw new Error(data.error || 'เกิดข้อผิดพลาดบางอย่าง');
       }
+
+      logUserAction('register', 'register_success', {
+        username,
+        timestamp: new Date().toISOString(),
+        level: 'SUCCESS'
+      });
 
       setSuccess(data.message);
       // เมื่อสำเร็จ ให้รอ 2 วินาทีแล้วพาไปหน้า Login

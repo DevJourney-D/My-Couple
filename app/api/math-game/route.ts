@@ -35,6 +35,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
+    // ดึงข้อมูลผู้ใช้
+    const { data: userData, error: userError } = await supabase
+      .from('custom_users')
+      .select('username')
+      .eq('id', userId)
+      .single();
+
+    if (userError || !userData) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
     const { score } = await request.json();
 
     if (typeof score !== 'number' || score < 0) {
@@ -86,7 +97,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ 
       success: true,
       newScore: newScore,
-      highScores: highScores || []
+      highScores: highScores || [],
+      currentUser: {
+        username: userData.username
+      }
     });
 
   } catch (error) {
@@ -114,16 +128,27 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
+    // ดึงข้อมูลผู้ใช้
+    const { data: userData, error: getUserError } = await supabase
+      .from('custom_users')
+      .select('username')
+      .eq('id', userId)
+      .single();
+
+    if (getUserError || !userData) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
     // ดึงคะแนนสูงสุดของผู้ใช้
-    const { data: userHighScores, error: userError } = await supabase
+    const { data: userHighScores, error: userScoresError } = await supabase
       .from('math_game_scores')
       .select('score, played_at')
       .eq('user_id', userId)
       .order('score', { ascending: false })
       .limit(10);
 
-    if (userError) {
-      console.error('Error fetching user high scores:', userError);
+    if (userScoresError) {
+      console.error('Error fetching user high scores:', userScoresError);
       return NextResponse.json({ error: 'Failed to fetch user scores' }, { status: 500 });
     }
 
@@ -159,7 +184,10 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ 
       userHighScores: userHighScores || [],
-      globalHighScores: globalHighScores || []
+      globalHighScores: globalHighScores || [],
+      currentUser: {
+        username: userData.username
+      }
     });
 
   } catch (error) {

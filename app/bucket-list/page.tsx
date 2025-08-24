@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { logUserAction } from '../../utils/logger';
 
 // =================================================================
 // ไอคอนต่างๆ
@@ -71,6 +72,13 @@ export default function BucketListPage() {
         type: 'success' | 'error' | 'info';
         message: string;
     } | null>(null);
+
+    useEffect(() => {
+        logUserAction('bucket-list', 'page_view', {
+            timestamp: new Date().toISOString(),
+            route: '/bucket-list'
+        });
+    }, []);
 
     // แสดง notification
     const showNotification = (type: 'success' | 'error' | 'info', message: string) => {

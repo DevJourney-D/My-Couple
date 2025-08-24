@@ -4,6 +4,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import React, { useState, useEffect, useCallback } from 'react';
+import { logUserAction } from '../../utils/logger';
 
 // =================================================================
 // Types & Interfaces
@@ -85,6 +86,13 @@ export default function PhotoGalleryPage() {
         file: null as File | null
     });
     const [notification, setNotification] = useState<Notification | null>(null);
+
+    useEffect(() => {
+        logUserAction('photo-gallery', 'page_view', {
+            timestamp: new Date().toISOString(),
+            route: '/photo-gallery'
+        });
+    }, []);
 
     const showNotification = (type: 'success' | 'error', message: string) => {
         setNotification({ type, message });

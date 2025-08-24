@@ -24,6 +24,44 @@ export const logAction = async (logData: LogEntry) => {
   }
 };
 
+// General logging function for any page
+export const logUserAction = (page: string, action: string, details: Record<string, unknown> = {}) => {
+  const timestamp = new Date().toISOString();
+  const logEntry = {
+    timestamp,
+    page,
+    action,
+    details,
+    userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : 'Unknown'
+  };
+  
+  console.log(`📝 ${page.toUpperCase()} Log:`, logEntry);
+  
+  // เก็บ log ใน localStorage สำหรับ backup
+  try {
+    const existingLogs = JSON.parse(localStorage.getItem('appLogs') || '[]');
+    existingLogs.push(logEntry);
+    // เก็บแค่ 1000 logs ล่าสุด
+    if (existingLogs.length > 1000) {
+      existingLogs.splice(0, existingLogs.length - 1000);
+    }
+    localStorage.setItem('appLogs', JSON.stringify(existingLogs));
+  } catch (error) {
+    console.error('Error saving log to localStorage:', error);
+  }
+
+  // ส่ง log ไปยัง API
+  logAction({
+    action: `${page.toUpperCase()}_${action.toUpperCase()}`,
+    level: details.level as 'INFO' | 'WARNING' | 'ERROR' | 'SUCCESS' || 'INFO',
+    details: {
+      ...details,
+      timestamp,
+      userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : 'Unknown'
+    }
+  });
+};
+
 // Todo-specific logging functions
 export const logTodoActions = {
   create: (task: string, priority: string, due_date?: string) => 

@@ -3,7 +3,8 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { logUserAction } from '@/utils/logger';
 
 // =================================================================
 // ไอคอนต่างๆ
@@ -45,12 +46,15 @@ export default function TimelinePage() {
     const [totalPages, setTotalPages] = useState(1);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
 
-    // Load timeline posts on component mount
+    // Log page view
     useEffect(() => {
-        loadPosts();
+        logUserAction('timeline', 'page_view', {
+            timestamp: new Date().toISOString(),
+            user_agent: navigator.userAgent
+        });
     }, []);
 
-    const loadPosts = async (page: number = 1, append: boolean = false) => {
+    const loadPosts = useCallback(async (page: number = 1, append: boolean = false) => {
         try {
             setError(null);
             const token = localStorage.getItem('auth_token');
@@ -60,7 +64,17 @@ export default function TimelinePage() {
                 return;
             }
 
-            if (append) setIsLoadingMore(true);
+            if (append) {
+                setIsLoadingMore(true);
+                logUserAction('timeline', 'load_more_posts', {
+                    page: page,
+                    current_posts_count: posts.length
+                });
+            } else {
+                logUserAction('timeline', 'load_posts', {
+                    page: page
+                });
+            }
 
             const response = await fetch(`/api/timeline?page=${page}&limit=10`, {
                 headers: {
@@ -104,7 +118,12 @@ export default function TimelinePage() {
             setLoading(false);
             if (append) setIsLoadingMore(false);
         }
-    };
+    }, [posts]);
+
+    // Load timeline posts on component mount
+    useEffect(() => {
+        loadPosts();
+    }, [loadPosts]);
 
     // โหลดโพสต์เพิ่มเติม
     const loadMorePosts = async () => {

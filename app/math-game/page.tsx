@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { logUserAction } from '@/utils/logger';
 
 // =================================================================
 // Icons
@@ -49,6 +50,14 @@ interface HighScore {
     playerName: string;
 }
 
+interface GlobalScore {
+    score: number;
+    played_at: string;
+    custom_users: {
+        username: string;
+    };
+}
+
 export default function MathGamePage() {
     const [gameStatus, setGameStatus] = useState<GameStatus>('waiting');
     const [score, setScore] = useState(0);
@@ -63,6 +72,7 @@ export default function MathGamePage() {
         message: string;
     } | null>(null);
     const [highScores, setHighScores] = useState<HighScore[]>([]);
+    const [globalLeaderboard, setGlobalLeaderboard] = useState<GlobalScore[]>([]);
     const [playerName, setPlayerName] = useState('');
 
     const showNotification = useCallback((type: 'success' | 'error' | 'info', message: string) => {
@@ -71,65 +81,83 @@ export default function MathGamePage() {
     }, []);
 
     // โหลดคะแนนสูงสุดจาก API
-    useEffect(() => {
-        const loadHighScores = async () => {
-            try {
-                const token = localStorage.getItem('auth_token');
-                if (!token) {
-                    // ถ้าไม่มี token ให้ใช้ localStorage แทน
-                    const savedScores = localStorage.getItem('mathGameHighScores');
-                    if (savedScores) {
-                        setHighScores(JSON.parse(savedScores));
-                    }
-                    return;
+    const loadHighScores = useCallback(async () => {
+        try {
+            const token = localStorage.getItem('auth_token');
+            if (!token) {
+                // ถ้าไม่มี token ให้ใช้ localStorage แทน
+                const savedScores = localStorage.getItem('mathGameHighScores');
+                if (savedScores) {
+                    setHighScores(JSON.parse(savedScores));
                 }
+                return;
+            }
 
-                const response = await fetch('/api/math-game', {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                    },
-                });
+            const response = await fetch('/api/math-game', {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+            });
 
-                if (response.ok) {
-                    const data = await response.json();
-                    // แปลงข้อมูลจาก API เป็นรูปแบบที่ใช้ใน UI
-                    const formattedScores: HighScore[] = data.userHighScores.map((score: ApiScore) => ({
-                        score: score.score,
-                        difficulty: difficulty, // ใช้ difficulty ปัจจุบัน
-                        date: new Date(score.played_at).toLocaleDateString('th-TH'),
-                        playerName: playerName || 'ผู้เล่น'
-                    }));
-                    setHighScores(formattedScores);
-                } else {
-                    // ถ้า API error ให้ใช้ localStorage แทน
-                    const savedScores = localStorage.getItem('mathGameHighScores');
-                    if (savedScores) {
-                        setHighScores(JSON.parse(savedScores));
-                    }
+            if (response.ok) {
+                const data = await response.json();
+                
+                // ตั้งชื่อผู้เล่นจาก API
+                if (data.currentUser && data.currentUser.username) {
+                    setPlayerName(data.currentUser.username);
                 }
-            } catch (error) {
-                console.error('Error loading high scores:', error);
-                // ถ้าเกิดข้อผิดพลาดให้ใช้ localStorage แทน
+                
+                // แปลงข้อมูลจาก API เป็นรูปแบบที่ใช้ใน UI
+                const formattedScores: HighScore[] = data.userHighScores.map((score: ApiScore) => ({
+                    score: score.score,
+                    difficulty: difficulty, // ใช้ difficulty ปัจจุบัน
+                    date: new Date(score.played_at).toLocaleDateString('th-TH'),
+                    playerName: data.currentUser?.username || 'ผู้เล่น'
+                }));
+                setHighScores(formattedScores);
+                
+                // ตั้งค่า global leaderboard
+                if (data.globalHighScores) {
+                    setGlobalLeaderboard(data.globalHighScores);
+                }
+            } else {
+                // ถ้า API error ให้ใช้ localStorage แทน
                 const savedScores = localStorage.getItem('mathGameHighScores');
                 if (savedScores) {
                     setHighScores(JSON.parse(savedScores));
                 }
             }
-        };
+        } catch (error) {
+            console.error('Error loading high scores:', error);
+            // ถ้าเกิดข้อผิดพลาดให้ใช้ localStorage แทน
+            const savedScores = localStorage.getItem('mathGameHighScores');
+            if (savedScores) {
+                setHighScores(JSON.parse(savedScores));
+            }
+        }
+    }, [difficulty]);
 
+    useEffect(() => {
         loadHighScores();
         
         const savedPlayerName = localStorage.getItem('mathGamePlayerName');
-        if (savedPlayerName) {
+        if (savedPlayerName && !playerName) {
             setPlayerName(savedPlayerName);
         }
-    }, [difficulty, playerName]);
+    }, [loadHighScores, playerName]);
+
+    // Log page view
+    useEffect(() => {
+        logUserAction('math-game', 'page_view', {
+            timestamp: new Date().toISOString(),
+            user_agent: navigator.userAgent,
+            difficulty: difficulty
+        });
+    }, [difficulty]);
 
     // บันทึกคะแนนใหม่
     const saveHighScore = useCallback(async (newScore: number) => {
-        const currentPlayerName = playerName.trim() || 'ผู้เล่นไม่ประสงค์ออกนาม';
-
         try {
             const token = localStorage.getItem('auth_token');
             
@@ -146,6 +174,10 @@ export default function MathGamePage() {
 
                 if (response.ok) {
                     const data = await response.json();
+                    
+                    // ใช้ username จาก API
+                    const currentPlayerName = data.currentUser?.username || 'ผู้เล่น';
+                    
                     // อัปเดตคะแนนสูงสุดจาก API
                     const formattedScores: HighScore[] = data.highScores.map((score: ApiScore) => ({
                         score: score.score,
@@ -160,17 +192,19 @@ export default function MathGamePage() {
                         showNotification('success', '🏆 คะแนนสูงสุดใหม่! ยินดีด้วย!');
                     }
                     
-                    localStorage.setItem('mathGamePlayerName', currentPlayerName);
+                    // อัปเดต global leaderboard หลังบันทึกคะแนน
+                    await loadHighScores();
                     return;
                 }
             }
 
             // Fallback ถ้าไม่มี token หรือ API error
+            const fallbackPlayerName = playerName.trim() || 'ผู้เล่นไม่ประสงค์ออกนาม';
             const newHighScore: HighScore = {
                 score: newScore,
                 difficulty: difficulty,
                 date: new Date().toLocaleDateString('th-TH'),
-                playerName: currentPlayerName
+                playerName: fallbackPlayerName
             };
 
             const updatedScores = [...highScores, newHighScore]
@@ -179,7 +213,7 @@ export default function MathGamePage() {
 
             setHighScores(updatedScores);
             localStorage.setItem('mathGameHighScores', JSON.stringify(updatedScores));
-            localStorage.setItem('mathGamePlayerName', currentPlayerName);
+            localStorage.setItem('mathGamePlayerName', fallbackPlayerName);
 
             // แจ้งเตือนถ้าทำคะแนนสูงสุดใหม่
             if (updatedScores.length > 0 && updatedScores[0].score === newScore) {
@@ -188,11 +222,12 @@ export default function MathGamePage() {
         } catch (error) {
             console.error('Error saving score:', error);
             // ใช้ localStorage เป็น fallback
+            const fallbackPlayerName = playerName.trim() || 'ผู้เล่นไม่ประสงค์ออกนาม';
             const newHighScore: HighScore = {
                 score: newScore,
                 difficulty: difficulty,
                 date: new Date().toLocaleDateString('th-TH'),
-                playerName: currentPlayerName
+                playerName: fallbackPlayerName
             };
 
             const updatedScores = [...highScores, newHighScore]
@@ -201,9 +236,9 @@ export default function MathGamePage() {
 
             setHighScores(updatedScores);
             localStorage.setItem('mathGameHighScores', JSON.stringify(updatedScores));
-            localStorage.setItem('mathGamePlayerName', currentPlayerName);
+            localStorage.setItem('mathGamePlayerName', fallbackPlayerName);
         }
-    }, [playerName, difficulty, highScores, showNotification]);
+    }, [difficulty, highScores, showNotification, playerName, loadHighScores]);
 
     // ตรวจสอบว่าเป็นคะแนนสูงหรือไม่
     const isHighScore = (score: number) => {
@@ -255,6 +290,11 @@ export default function MathGamePage() {
     };
 
     const startGame = () => {
+        logUserAction('math-game', 'start_game', {
+            difficulty: difficulty,
+            player_name: playerName
+        });
+        
         setGameStatus('playing');
         setScore(0);
         setTimeLeft(60);
@@ -264,8 +304,18 @@ export default function MathGamePage() {
     const handleAnswerSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         const answer = parseInt(userAnswer);
+        const isCorrect = answer === problem.answer;
         
-        if (answer === problem.answer) {
+        logUserAction('math-game', 'submit_answer', {
+            problem: `${problem.num1} ${problem.operator} ${problem.num2}`,
+            correct_answer: problem.answer,
+            user_answer: answer,
+            is_correct: isCorrect,
+            difficulty: difficulty,
+            current_score: score
+        });
+        
+        if (isCorrect) {
             setScore(prev => prev + getDifficultyMultiplier());
             setShowCorrect(true);
             showNotification('success', `ถูกต้อง! +${getDifficultyMultiplier()} คะแนน 🎉`);
@@ -296,12 +346,20 @@ export default function MathGamePage() {
             return () => clearTimeout(timer);
         } else if (timeLeft === 0 && gameStatus === 'playing') {
             setGameStatus('finished');
+            
+            logUserAction('math-game', 'game_finished', {
+                final_score: score,
+                difficulty: difficulty,
+                duration: 60,
+                player_name: playerName
+            });
+            
             // บันทึกคะแนนเมื่อเกมจบ
             if (score > 0) {
                 saveHighScore(score);
             }
         }
-    }, [gameStatus, timeLeft, score, saveHighScore]);
+    }, [gameStatus, timeLeft, score, saveHighScore, difficulty, playerName]);
 
     const getScoreMessage = () => {
         if (score >= 200) return '🏆 เก่งมาก! คุณเป็นนักคณิตศาสตร์ตัวจริง!';
@@ -361,7 +419,13 @@ export default function MathGamePage() {
                                 <h3 className="text-lg font-black text-gray-800 mb-3">🎯 เลือกระดับความยาก:</h3>
                                 <div className="space-y-2">
                                     <button
-                                        onClick={() => setDifficulty('easy')}
+                                        onClick={() => {
+                                            setDifficulty('easy');
+                                            logUserAction('math-game', 'change_difficulty', {
+                                                new_difficulty: 'easy',
+                                                previous_difficulty: difficulty
+                                            });
+                                        }}
                                         className={`w-full p-3 rounded-xl border-2 transition-all duration-200 font-black text-base ${
                                             difficulty === 'easy'
                                                 ? 'border-green-500 bg-green-100 text-green-800 shadow-lg transform scale-105'
@@ -374,7 +438,13 @@ export default function MathGamePage() {
                                         </div>
                                     </button>
                                     <button
-                                        onClick={() => setDifficulty('medium')}
+                                        onClick={() => {
+                                            setDifficulty('medium');
+                                            logUserAction('math-game', 'change_difficulty', {
+                                                new_difficulty: 'medium',
+                                                previous_difficulty: difficulty
+                                            });
+                                        }}
                                         className={`w-full p-3 rounded-xl border-2 transition-all duration-200 font-black text-base ${
                                             difficulty === 'medium'
                                                 ? 'border-orange-500 bg-orange-100 text-orange-800 shadow-lg transform scale-105'
@@ -387,7 +457,13 @@ export default function MathGamePage() {
                                         </div>
                                     </button>
                                     <button
-                                        onClick={() => setDifficulty('hard')}
+                                        onClick={() => {
+                                            setDifficulty('hard');
+                                            logUserAction('math-game', 'change_difficulty', {
+                                                new_difficulty: 'hard',
+                                                previous_difficulty: difficulty
+                                            });
+                                        }}
                                         className={`w-full p-3 rounded-xl border-2 transition-all duration-200 font-black text-base ${
                                             difficulty === 'hard'
                                                 ? 'border-red-500 bg-red-100 text-red-800 shadow-lg transform scale-105'
@@ -402,26 +478,11 @@ export default function MathGamePage() {
                                 </div>
                             </div>
 
-                            {/* ใส่ชื่อผู้เล่น */}
-                            <div className="mb-8">
-                                <h3 className="text-xl font-black text-gray-800 mb-4 flex items-center justify-center gap-2">
-                                    👤 ชื่อผู้เล่น:
-                                </h3>
-                                <input
-                                    type="text"
-                                    value={playerName}
-                                    onChange={(e) => setPlayerName(e.target.value)}
-                                    placeholder="ใส่ชื่อของคุณ (ไม่บังคับ)"
-                                    className="w-full px-4 py-2 border-2 border-blue-300 rounded-xl focus:ring-2 focus:ring-blue-200 focus:border-blue-500 font-bold text-gray-800 text-base bg-white/80 placeholder-gray-500"
-                                />
-                                <p className="text-base text-blue-600 mt-3 font-bold">✨ ชื่อจะแสดงในตาราง Top 5 คะแนน</p>
-                            </div>
-
-                            {/* แสดงคะแนนสูงสุด 5 อันดับ */}
+                            {/* แสดงคะแนนสูงสุดส่วนตัว */}
                             {highScores.length > 0 && (
                                 <div className="mb-8 p-6 bg-amber-100 border-3 border-amber-300 rounded-2xl shadow-lg">
                                     <h3 className="text-lg font-black text-gray-800 mb-2 flex items-center justify-center gap-2">
-                                        🏆 Top 5 คะแนนสูงสุด
+                                        🏆 คะแนนสูงสุดของคุณ
                                     </h3>
                                     <div className="space-y-3">
                                         {highScores.map((score, index) => (
@@ -443,6 +504,47 @@ export default function MathGamePage() {
                                                     </div>
                                                 </div>
                                                 <span className="font-black text-xl text-blue-600">{score.score}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* แสดง Global Leaderboard */}
+                            {globalLeaderboard.length > 0 && (
+                                <div className="mb-8 p-6 bg-gradient-to-br from-purple-100 to-pink-100 border-3 border-purple-300 rounded-2xl shadow-lg">
+                                    <h3 className="text-lg font-black text-gray-800 mb-2 flex items-center justify-center gap-2">
+                                        🌟 อันดับคะแนนสูงสุด (ทั้งหมด)
+                                    </h3>
+                                    <div className="space-y-3">
+                                        {globalLeaderboard.map((score, index) => (
+                                            <div key={index} className={`flex items-center justify-between p-3 rounded-xl shadow-md border ${
+                                                score.custom_users.username === playerName 
+                                                    ? 'bg-yellow-200 border-yellow-400' 
+                                                    : 'bg-white/90 border-purple-200'
+                                            }`}>
+                                                <div className="flex items-center gap-3">
+                                                    <span className={`w-8 h-8 rounded-full flex items-center justify-center text-base font-black ${
+                                                        index === 0 ? 'bg-yellow-400 text-yellow-900' :
+                                                        index === 1 ? 'bg-gray-300 text-gray-700' :
+                                                        index === 2 ? 'bg-orange-300 text-orange-900' :
+                                                        'bg-purple-200 text-purple-800'
+                                                    }`}>
+                                                        {index + 1}
+                                                    </span>
+                                                    <div>
+                                                        <div className="font-black text-base text-gray-800 flex items-center gap-2">
+                                                            {score.custom_users.username}
+                                                            {score.custom_users.username === playerName && (
+                                                                <span className="text-xs bg-green-500 text-white px-2 py-1 rounded-full">คุณ</span>
+                                                            )}
+                                                        </div>
+                                                        <div className="text-sm text-gray-600 font-bold">
+                                                            🎮 {new Date(score.played_at).toLocaleDateString('th-TH')}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <span className="font-black text-xl text-purple-600">{score.score}</span>
                                             </div>
                                         ))}
                                     </div>
@@ -614,6 +716,47 @@ export default function MathGamePage() {
                                                     </div>
                                                 </div>
                                                 <span className="font-black text-xl text-blue-600">{highScore.score}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* แสดง Global Leaderboard */}
+                            {globalLeaderboard.length > 0 && (
+                                <div className="mb-8 p-6 bg-gradient-to-br from-purple-100 to-pink-100 border-3 border-purple-300 rounded-2xl shadow-lg">
+                                    <h3 className="text-2xl font-black text-gray-800 mb-4 flex items-center justify-center gap-2">
+                                        🌟 อันดับคะแนนสูงสุด (ทั้งหมด)
+                                    </h3>
+                                    <div className="space-y-3">
+                                        {globalLeaderboard.map((globalScore, index) => (
+                                            <div key={index} className={`flex items-center justify-between p-3 rounded-xl border-2 ${
+                                                globalScore.custom_users.username === playerName 
+                                                    ? 'bg-yellow-200 border-yellow-400 shadow-md' 
+                                                    : 'bg-white/90 border-purple-200'
+                                            }`}>
+                                                <div className="flex items-center gap-3">
+                                                    <span className={`w-8 h-8 rounded-full flex items-center justify-center text-base font-black ${
+                                                        index === 0 ? 'bg-yellow-400 text-yellow-900' :
+                                                        index === 1 ? 'bg-gray-300 text-gray-700' :
+                                                        index === 2 ? 'bg-orange-300 text-orange-900' :
+                                                        'bg-purple-200 text-purple-800'
+                                                    }`}>
+                                                        {index + 1}
+                                                    </span>
+                                                    <div>
+                                                        <div className="font-black text-base text-gray-800 flex items-center gap-2">
+                                                            {globalScore.custom_users.username}
+                                                            {globalScore.custom_users.username === playerName && (
+                                                                <span className="text-xs bg-green-500 text-white px-2 py-1 rounded-full">คุณ</span>
+                                                            )}
+                                                        </div>
+                                                        <div className="text-sm text-gray-600 font-bold">
+                                                            🎮 {new Date(globalScore.played_at).toLocaleDateString('th-TH')}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <span className="font-black text-xl text-purple-600">{globalScore.score}</span>
                                             </div>
                                         ))}
                                     </div>

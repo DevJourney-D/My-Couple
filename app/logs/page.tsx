@@ -117,12 +117,6 @@ export default function LogsPage() {
             const data = await response.json();
             setLogs(data.logs || []);
             setTotalPages(data.totalPages || 1);
-            
-            // Calculate stats
-            if (data.logs) {
-                const statsData = calculateStats(data.logs);
-                setStats(statsData);
-            }
 
         } catch (error) {
             console.error('Error loading logs:', error);
